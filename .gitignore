@@ -1,0 +1,46 @@
+# ── Virtual Environment ──
+.venv/
+venv/
+env/
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ── Environment / Secrets ──
+.env
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ── Project Outputs ──
+outputs/*.json
+outputs/*.csv
+
+# ── Model Weights (large files) ──
+models/*.pt
+models/*.pth
+models/*.h5
+models/*.onnx
+
+# ── Data files ──
+data/*.mp4
+data/*.wav
+data/*.mp3
+
+# ── Jupyter ──
+.ipynb_checkpoints/
+
+# ── pytest ──
+.pytest_cache/
