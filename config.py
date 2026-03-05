@@ -64,3 +64,22 @@ JSON_INDENT = 2                      # Pretty-print indent for output JSON
 LOG_LEVEL = "INFO"                   # DEBUG, INFO, WARNING, ERROR, CRITICAL
 LOG_FORMAT = "%(asctime)s | %(name)-20s | %(levelname)-7s | %(message)s"
 LOG_DATE_FORMAT = "%H:%M:%S"
+
+# ──────────────────────────────────────────────
+# Emotion Recording Session
+# ──────────────────────────────────────────────
+RECORDER_TARGET_FPS = 10          # Target frames per second for emotion capture
+RECORDER_OUTPUT_DIR = "outputs"   # Directory where session CSVs are saved
+
+# ──────────────────────────────────────────────
+# Emotion Labels (canonical order, used across all modules)
+# ──────────────────────────────────────────────
+EMOTION_LABELS = [
+    "happy",
+    "sad",
+    "angry",
+    "surprised",
+    "disgusted",
+    "fearful",
+    "neutral",
+]
