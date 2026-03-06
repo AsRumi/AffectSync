@@ -71,6 +71,11 @@ def run(show_preview: bool = True) -> None:
     frame_count = 0
     inference_count = 0
 
+    # Cache the last bbox and emotion detected to display between inference frame pauses too
+    last_bbox = None
+    last_emotion = "no_face"
+    last_confidence = 0.0
+
     with WebcamCapture() as cam:
         logger.info(
             "Streaming at target %d FPS. Press 'q' to quit.",
@@ -82,35 +87,29 @@ def run(show_preview: bool = True) -> None:
             frame_count += 1
             now = time.monotonic()
 
-            # Throttle inference to TARGET_FPS
-            if now - last_inference_time < frame_interval:
-                if show_preview:
-                    cv2.imshow("AffectSync — Phase 0", frame)
-                    if cv2.waitKey(1) & 0xFF == ord("q"):
-                        break
-                continue
+            # Run inference only at TARGET_FPS, but display every frame
+            if now - last_inference_time >= frame_interval:
+                last_inference_time = now
 
-            last_inference_time = now
+                # Detect face
+                last_bbox = detector.detect(frame)
+                face_crop = detector.crop_face(frame) if last_bbox is not None else None
 
-            # Detect face
-            bbox = detector.detect(frame)
-            face_crop = detector.crop_face(frame) if bbox is not None else None
+                # Classify emotion
+                if face_crop is not None:
+                    last_emotion, last_confidence, all_scores = classifier.classify(face_crop)
+                    inference_count += 1
+                    logger.info(
+                        "t=%7.0fms | %-10s | conf=%.2f | scores=%s",
+                        timestamp_ms, last_emotion, last_confidence, all_scores,
+                    )
+                else:
+                    last_emotion, last_confidence = "no_face", 0.0
+                    logger.debug("t=%7.0fms | no face detected", timestamp_ms)
 
-            # Classify emotion
-            if face_crop is not None:
-                emotion, confidence, all_scores = classifier.classify(face_crop)
-                inference_count += 1
-                logger.info(
-                    "t=%7.0fms | %-10s | conf=%.2f | scores=%s",
-                    timestamp_ms, emotion, confidence, all_scores,
-                )
-            else:
-                emotion, confidence = "no_face", 0.0
-                logger.debug("t=%7.0fms | no face detected", timestamp_ms)
-
-            # Show preview window
+            # Draw the cached overlay on EVERY frame, then display
             if show_preview:
-                draw_overlay(frame, bbox, emotion, confidence)
+                draw_overlay(frame, last_bbox, last_emotion, last_confidence)
                 cv2.imshow("AffectSync — Phase 0", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
