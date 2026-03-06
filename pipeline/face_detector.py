@@ -16,7 +16,7 @@ import config
 
 logger = get_logger(__name__)
 
-# OpenCV ships the Haar cascade XML files with the package
+# Select haarcascade_frontalface_default.xml from OpenCV
 _CASCADE_PATH = Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"
 
 
@@ -55,9 +55,35 @@ class FaceDetector:
 
         Returns:
             (x, y, w, h) of the largest detected face, or None if no face found.
+            
+        Hyperparams Info:
+        scaleFactor
+            The classifier can only detect faces at one size at a time, so it scans the image repeatedly at shrinking scales — each pass makes the image slightly smaller. scaleFactor controls how much smaller each pass is.
+
+            A value of 1.1 means each pass shrinks the image by 10%
+            A value of 1.3 means 30% smaller each pass
+
+            A smaller scaleFactor (closer to 1.0) means more passes, more chances to catch a face → higher detection rate but slower. A larger value is faster but might miss faces that fall between scales.
+
+        minNeighbors
+            The classifier works by sliding a detection window across the image. It will get many "candidate" hits in roughly the same area. minNeighbors sets how many neighboring candidates must agree before a detection is confirmed as a real face.
+
+            Low value → more detections, but more false positives (random patches flagged as faces)
+            High value → stricter, fewer false positives, but might miss real faces
+
+            It's essentially a confidence threshold — a lone candidate hit is probably noise, but 5 overlapping hits in the same spot is likely a real face.
+
+        minSize
+            The minimum pixel dimensions (width, height) a detected face must be to count. Any candidate smaller than this is ignored outright.
+            This is useful for two reasons:
+
+            Filters out tiny false positives from background noise
+            Saves computation time by skipping implausibly small detections
+
+            For a webcam feed where the person is reasonably close, setting something like (60, 60) makes sense — you wouldn't expect a real face to occupy fewer pixels than that.
         """
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray = cv2.equalizeHist(gray)
+        gray = cv2.equalizeHist(gray) # Improve contrast across entire image (eg. if lighting was poor and you have dark patches dominating leading to lots of values close to 0)
 
         faces = self._classifier.detectMultiScale(
             gray,
@@ -101,4 +127,4 @@ class FaceDetector:
         x2 = min(frame_w, x + w + pad_x)
         y2 = min(frame_h, y + h + pad_y)
 
-        return frame[y1:y2, x1:x2]
+        return frame[y1:y2, x1:x2] # Splice the numpy array to return only those rows and cols that contain the face, 3 RGB channels carries over automatically, no need to splice
