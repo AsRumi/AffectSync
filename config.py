@@ -1,7 +1,7 @@
 """
 AffectSync — Central Configuration
 
-All configurable values live here. No magic numbers anywhere else in the codebase.
+All configurable values live here.
 """
 
 from pathlib import Path
@@ -41,7 +41,7 @@ FACE_MIN_SIZE = (48, 48)             # Minimum face crop size in pixels (w, h)
 # DeepFace Settings
 # ──────────────────────────────────────────────
 DEEPFACE_MODEL_NAME = "Emotion"      # DeepFace action
-DEEPFACE_ENFORCE_DETECTION = False   # If True, raises error when no face found
+DEEPFACE_ENFORCE_DETECTION = False   # Set true to raise error when no face found
 
 # ──────────────────────────────────────────────
 # Emotion Recording Session (Phase 1)
