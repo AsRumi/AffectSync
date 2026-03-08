@@ -1,5 +1,9 @@
 """
-Session timer using monotonic clock to prevent OS backtrack (NTP Adjustments)
+Session timer using monotonic clock.
+
+Provides consistent, drift-free timestamps for emotion recording sessions.
+Uses time.monotonic() which cannot jump backwards due to NTP adjustments,
+making it the correct foundation for the video sync controller in Phase 2.
 """
 
 import time

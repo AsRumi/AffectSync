@@ -7,13 +7,19 @@ collecting timestamped EmotionRecord entries. Exports to CSV on completion.
 
 import csv
 import logging
-from dataclasses import dataclass, field, asdict
+import sys
+from dataclasses import dataclass, field
 from pathlib import Path
+
+# Ensure project root is importable
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 from config import (
     EMOTION_LABELS,
-    RECORDER_TARGET_FPS,
     RECORDER_OUTPUT_DIR,
+    EMOTION_CONFIDENCE_THRESHOLD,
 )
 from utils.timer import SessionTimer
 from pipeline.webcam_capture import WebcamCapture
@@ -59,6 +65,9 @@ class EmotionRecorder:
     Orchestrates a recording session: captures webcam frames, detects faces,
     classifies emotions, and stores timestamped records.
 
+    Components are injected via the constructor so tests can replace any
+    hardware dependency with a mock.
+
     Usage:
         recorder = EmotionRecorder()
         recorder.start()
@@ -91,12 +100,15 @@ class EmotionRecorder:
     def start(self) -> None:
         """Begin a recording session. Clears any previous records."""
         self._records = []
+        if not self._webcam.is_open:
+            self._webcam.open()
         self._timer.start()
         logger.info("Emotion recording session started.")
 
     def stop(self) -> None:
-        """End the recording session."""
+        """End the recording session and release the webcam."""
         self._timer.stop()
+        self._webcam.release()
         duration_s = self._timer.elapsed_ms() / 1000
         logger.info(
             "Session stopped. Duration: %.2fs | Frames recorded: %d",
@@ -110,20 +122,31 @@ class EmotionRecorder:
         and append the result to the session records.
 
         Returns the EmotionRecord if a frame was processed, or None if
-        the webcam returned no frame.
+        the webcam failed to return a frame.
+
+        Phase 0 interface notes:
+        - WebcamCapture.read_frame() returns (timestamp_ms, frame) and
+          raises RuntimeError on failure — we catch that and return None.
+        - FaceDetector.detect() returns a single (x,y,w,h) tuple or None,
+          NOT a list. The detector already picks the largest face.
+        - FaceDetector.crop_face() returns the cropped region or None.
         """
         if not self._timer.is_running:
             raise RuntimeError("Cannot record frames before calling start().")
 
-        frame = self._webcam.read_frame()
-        if frame is None:
+        try:
+            _webcam_ts, frame = self._webcam.read_frame()
+        except RuntimeError:
             logger.warning("Webcam returned no frame — skipping.")
             return None
 
+        # Use our session timer for the timestamp, not the webcam's
         timestamp_ms = self._timer.elapsed_ms()
-        faces = self._face_detector.detect(frame)
 
-        if not faces:
+        # FaceDetector.detect() -> (x,y,w,h) or None
+        bbox = self._face_detector.detect(frame)
+
+        if bbox is None:
             record = EmotionRecord(
                 timestamp_ms=timestamp_ms,
                 emotion="no_face",
@@ -133,9 +156,18 @@ class EmotionRecorder:
             self._records.append(record)
             return record
 
-        # Use the largest detected face (closest to camera)
-        x, y, w, h = max(faces, key=lambda box: box[2] * box[3])
-        face_roi = frame[y : y + h, x : x + w]
+        # Crop the face region for the classifier
+        face_roi = self._face_detector.crop_face(frame)
+        if face_roi is None:
+            # detect() found a face but crop_face() didn't — unlikely but safe
+            record = EmotionRecord(
+                timestamp_ms=timestamp_ms,
+                emotion="no_face",
+                confidence=0.0,
+                face_detected=False,
+            )
+            self._records.append(record)
+            return record
 
         emotion, confidence, all_scores = self._classifier.classify(face_roi)
 

@@ -1,10 +1,28 @@
-"""Tests for pipeline.emotion_recorder.EmotionRecorder."""
+"""
+Tests for pipeline.emotion_recorder.EmotionRecorder.
+
+All tests use mock objects for webcam, face detector, and classifier.
+No hardware dependencies.
+
+Key Phase 0 interfaces this file mocks:
+- WebcamCapture.read_frame() -> (timestamp_ms: float, frame: np.ndarray)
+  Raises RuntimeError on failure.
+- WebcamCapture.is_open -> bool property
+- WebcamCapture.open() / release()
+- FaceDetector.detect(frame) -> (x,y,w,h) tuple or None  (NOT a list)
+- FaceDetector.crop_face(frame) -> np.ndarray or None
+- EmotionClassifier.classify(face_roi) -> (emotion, confidence, all_scores)
+"""
 
 import csv
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock, PropertyMock, patch
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch
-from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pipeline.emotion_recorder import EmotionRecorder, EmotionRecord, CSV_COLUMNS
 from utils.timer import SessionTimer
@@ -22,46 +40,54 @@ def fake_frame():
 
 @pytest.fixture
 def mock_webcam(fake_frame):
+    """Webcam mock: is_open=True, read_frame returns (0.0, frame)."""
     webcam = MagicMock()
-    webcam.read_frame.return_value = fake_frame
+    type(webcam).is_open = PropertyMock(return_value=True)
+    webcam.read_frame.return_value = (0.0, fake_frame)
     return webcam
 
 
 @pytest.fixture
-def mock_webcam_no_frame():
+def mock_webcam_read_fails():
+    """Webcam mock: read_frame raises RuntimeError (simulates dropped frame)."""
     webcam = MagicMock()
-    webcam.read_frame.return_value = None
+    type(webcam).is_open = PropertyMock(return_value=True)
+    webcam.read_frame.side_effect = RuntimeError("Failed to read frame.")
     return webcam
 
 
 @pytest.fixture
-def mock_face_detector():
+def mock_face_detector(fake_frame):
+    """Face detector mock: detect returns a single bbox, crop_face returns a region."""
     detector = MagicMock()
-    # Returns one face bounding box: (x, y, w, h)
-    detector.detect.return_value = [(100, 100, 150, 150)]
+    detector.detect.return_value = (100, 100, 150, 150)
+    detector.crop_face.return_value = fake_frame[100:250, 100:250]
     return detector
 
 
 @pytest.fixture
 def mock_face_detector_no_face():
+    """Face detector mock: no face found."""
     detector = MagicMock()
-    detector.detect.return_value = []
+    detector.detect.return_value = None
+    detector.crop_face.return_value = None
     return detector
 
 
 @pytest.fixture
 def mock_classifier():
+    """Classifier mock: returns happy with full score dict."""
     classifier = MagicMock()
     classifier.classify.return_value = (
         "happy",
         0.87,
         {
-            "happy": 0.87,
-            "sad": 0.02,
             "angry": 0.01,
-            "surprised": 0.05,
             "disgusted": 0.01,
             "fearful": 0.01,
+            "happy": 0.87,
+            "sad": 0.02,
+            "surprised": 0.05,
             "neutral": 0.03,
         },
     )
@@ -102,6 +128,22 @@ class TestRecorderLifecycle:
         recorder.stop()
         assert recorder.timer.is_stopped
 
+    def test_start_opens_webcam_if_closed(self, mock_face_detector, mock_classifier):
+        webcam = MagicMock()
+        type(webcam).is_open = PropertyMock(return_value=False)
+        recorder = EmotionRecorder(
+            webcam=webcam,
+            face_detector=mock_face_detector,
+            emotion_classifier=mock_classifier,
+        )
+        recorder.start()
+        webcam.open.assert_called_once()
+
+    def test_stop_releases_webcam(self, recorder):
+        recorder.start()
+        recorder.stop()
+        recorder._webcam.release.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # Frame recording tests
@@ -130,11 +172,11 @@ class TestRecordFrame:
         timestamps = [r.timestamp_ms for r in records]
         assert timestamps == sorted(timestamps)
 
-    def test_no_frame_returns_none(
-        self, mock_webcam_no_frame, mock_face_detector, mock_classifier
+    def test_webcam_failure_returns_none(
+        self, mock_webcam_read_fails, mock_face_detector, mock_classifier
     ):
         recorder = EmotionRecorder(
-            webcam=mock_webcam_no_frame,
+            webcam=mock_webcam_read_fails,
             face_detector=mock_face_detector,
             emotion_classifier=mock_classifier,
         )
@@ -157,26 +199,22 @@ class TestRecordFrame:
         assert record.face_detected is False
         assert record.confidence == 0.0
 
-    def test_largest_face_is_selected(
-        self, mock_webcam, mock_classifier, fake_frame
+    def test_classifier_receives_cropped_face(
+        self, mock_webcam, mock_face_detector, mock_classifier
     ):
-        """When multiple faces are detected, the largest one is used."""
-        detector = MagicMock()
-        detector.detect.return_value = [
-            (10, 10, 50, 50),    # small face (area 2500)
-            (100, 100, 200, 200), # large face (area 40000)
-        ]
+        """Verify the classifier gets the output of crop_face, not the raw frame."""
         recorder = EmotionRecorder(
             webcam=mock_webcam,
-            face_detector=detector,
+            face_detector=mock_face_detector,
             emotion_classifier=mock_classifier,
         )
         recorder.start()
         recorder.record_frame()
-        # Verify classifier got the ROI from the larger bounding box
-        call_args = mock_classifier.classify.call_args[0][0]
-        assert call_args.shape[0] == 200  # height of the large face ROI
-        assert call_args.shape[1] == 200  # width of the large face ROI
+        # crop_face was called, and its return value was passed to classify
+        mock_face_detector.crop_face.assert_called_once()
+        mock_classifier.classify.assert_called_once()
+        classify_arg = mock_classifier.classify.call_args[0][0]
+        assert classify_arg.shape == (150, 150, 3)
 
 
 # ---------------------------------------------------------------------------

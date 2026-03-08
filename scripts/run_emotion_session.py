@@ -10,7 +10,12 @@ Usage:
 import argparse
 import time
 import sys
-import logging
+from pathlib import Path
+
+# Ensure project root is on the path
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 from config import RECORDER_TARGET_FPS
 from utils.logger import get_logger
@@ -23,7 +28,7 @@ DEFAULT_DURATION_S = 30
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Record webcam emotions to a timestamped CSV."
+        description="AffectSync — Record webcam emotions to a timestamped CSV."
     )
     parser.add_argument(
         "--duration",
@@ -89,10 +94,11 @@ def run_session(duration_s: int, target_fps: int, output_filename: str | None) -
 
     # Export results
     csv_path = recorder.export_csv(output_filename)
-    actual_fps = frames_processed / (recorder.timer.elapsed_ms() / 1000) if recorder.timer.elapsed_ms() > 0 else 0
+    duration_total = recorder.timer.elapsed_ms() / 1000
+    actual_fps = frames_processed / duration_total if duration_total > 0 else 0
 
     print(f"\n  Session complete.")
-    print(f"  Duration:  {recorder.timer.elapsed_ms() / 1000:.1f}s")
+    print(f"  Duration:  {duration_total:.1f}s")
     print(f"  Frames:    {frames_processed}")
     print(f"  Avg FPS:   {actual_fps:.1f}")
     print(f"  Output:    {csv_path}\n")

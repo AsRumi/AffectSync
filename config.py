@@ -44,6 +44,12 @@ DEEPFACE_MODEL_NAME = "Emotion"      # DeepFace action
 DEEPFACE_ENFORCE_DETECTION = False   # If True, raises error when no face found
 
 # ──────────────────────────────────────────────
+# Emotion Recording Session (Phase 1)
+# ──────────────────────────────────────────────
+RECORDER_TARGET_FPS = 10             # Target FPS for emotion capture loop
+RECORDER_OUTPUT_DIR = "outputs"      # Directory where session CSVs are saved
+
+# ──────────────────────────────────────────────
 # Video Playback Settings (Phase 2+)
 # ──────────────────────────────────────────────
 MAX_VIDEO_DURATION_SEC = 300         # 5 minute cap for MVP clips
@@ -64,22 +70,3 @@ JSON_INDENT = 2                      # Pretty-print indent for output JSON
 LOG_LEVEL = "INFO"                   # DEBUG, INFO, WARNING, ERROR, CRITICAL
 LOG_FORMAT = "%(asctime)s | %(name)-20s | %(levelname)-7s | %(message)s"
 LOG_DATE_FORMAT = "%H:%M:%S"
-
-# ──────────────────────────────────────────────
-# Emotion Recording Session
-# ──────────────────────────────────────────────
-RECORDER_TARGET_FPS = 10          # Target frames per second for emotion capture
-RECORDER_OUTPUT_DIR = "outputs"   # Directory where session CSVs are saved
-
-# ──────────────────────────────────────────────
-# Emotion Labels (canonical order, used across all modules)
-# ──────────────────────────────────────────────
-EMOTION_LABELS = [
-    "happy",
-    "sad",
-    "angry",
-    "surprised",
-    "disgusted",
-    "fearful",
-    "neutral",
-]
