@@ -3,6 +3,10 @@ Emotion recording session orchestrator.
 
 Runs a timed loop: webcam -> face detection -> emotion classification,
 collecting timestamped EmotionRecord entries. Exports to CSV on completion.
+
+When used inside SyncController, the timer is shared;
+the controller owns start/stop/pause/resume. The recorder just reads
+elapsed_ms() for timestamps and checks that the timer has been started.
 """
 
 import csv
@@ -68,12 +72,16 @@ class EmotionRecorder:
     Components are injected via the constructor so tests can replace any
     hardware dependency with a mock.
 
-    Usage:
+    Usage (standalone — Phase 1):
         recorder = EmotionRecorder()
         recorder.start()
         # ... in a loop, call recorder.record_frame() at target FPS ...
         recorder.stop()
         recorder.export_csv("session_001.csv")
+
+    Usage (inside SyncController — Phase 2):
+        # Controller injects a shared timer and calls record_frame() directly.
+        # Controller owns start/stop/pause/resume on the timer.
     """
 
     def __init__(
@@ -124,14 +132,13 @@ class EmotionRecorder:
         Returns the EmotionRecord if a frame was processed, or None if
         the webcam failed to return a frame.
 
-        Phase 0 interface notes:
-        - WebcamCapture.read_frame() returns (timestamp_ms, frame) and
-          raises RuntimeError on failure — we catch that and return None.
-        - FaceDetector.detect() returns a single (x,y,w,h) tuple or None,
-          NOT a list. The detector already picks the largest face.
-        - FaceDetector.crop_face() returns the cropped region or None.
+        Timer guard: The timer must be running (or at least started).
+        In Phase 1 standalone mode, the timer is always running during
+        recording. In Phase 2 sync mode, the SyncController ensures
+        record_frame() is only called when the timer is running (not
+        paused), but we guard against the idle state regardless.
         """
-        if not self._timer.is_running:
+        if not (self._timer.is_running or self._timer.is_paused):
             raise RuntimeError("Cannot record frames before calling start().")
 
         try:

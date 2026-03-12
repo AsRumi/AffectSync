@@ -50,9 +50,11 @@ RECORDER_TARGET_FPS = 10             # Target FPS for emotion capture loop
 RECORDER_OUTPUT_DIR = "outputs"      # Directory where session CSVs are saved
 
 # ──────────────────────────────────────────────
-# Video Playback Settings (Phase 2+)
+# Video Sync Settings (Phase 2)
 # ──────────────────────────────────────────────
 MAX_VIDEO_DURATION_SEC = 300         # 5 minute cap for MVP clips
+SYNC_DISPLAY_FPS = 30               # Main loop tick rate for smooth video display
+SYNC_EMOTION_FPS = 10               # Emotion inference rate within the display loop
 
 # ──────────────────────────────────────────────
 # Whisper Transcription Settings (Phase 3+)
