@@ -1,0 +1,5 @@
+Wednesday 3/11 — 6:30 PM CBC Meeting Online on Teams
+
+opens the video file from path and initializes the cv2 frame capture class.
+If the file was suvvesfully opened, also initializes metadata of the file, including: fps, frame count, width, height, duration
+
