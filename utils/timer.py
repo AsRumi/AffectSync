@@ -6,14 +6,10 @@ and video sync. Uses time.monotonic() which cannot jump backwards due to
 NTP adjustments, making it the single source of truth for all timestamp
 coordination in the pipeline.
 
-State machine:
-    idle ──start()──► running ──pause()──► paused ──resume()──► running
-                         │                                         │
-                         └──stop()──► stopped ◄───────stop()───────┘
+pause() and resume() allow the sync controller to
+freeze both video playback and emotion recording simultaneously.
 
-Phase 2 additions: pause() and resume() allow the sync controller to
-freeze both video playback and emotion recording simultaneously, so
-the viewer can take a break without introducing drift.
+elapsed_ms returns time subtracting paused time.
 """
 
 import time

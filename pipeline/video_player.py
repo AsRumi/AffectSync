@@ -2,8 +2,7 @@
 Video frame server for synchronized playback.
 
 Opens a video file via cv2.VideoCapture and serves frames on demand.
-This is NOT a media player — it does not own a clock or control playback
-speed. The SyncController asks for a frame at a given timestamp, and
+SyncController asks for a frame at a given timestamp,
 this module seeks to that position and returns the BGR frame.
 
 Key design decisions:
@@ -157,7 +156,7 @@ class VideoPlayer:
         if not ret or frame is None:
             return None
 
-        # Read the position AFTER the read — this is where we just read from
+        # Read the position AFTER the read; this is where we just read from
         position_ms = self._cap.get(cv2.CAP_PROP_POS_MSEC)
         return position_ms, frame
 
@@ -165,15 +164,13 @@ class VideoPlayer:
         """
         Seek to a specific position without reading a frame.
 
-        Useful after resuming from a pause — seek to where the timer
+        Useful after resuming from a pause; seek to where the timer
         says we are, then continue with read_next_frame().
         """
         if self._cap is None or not self._cap.isOpened():
             raise RuntimeError("Video is not open. Call open() first.")
 
         self._cap.set(cv2.CAP_PROP_POS_MSEC, float(max(0, timestamp_ms)))
-
-    # ----- Metadata properties -----
 
     @property
     def fps(self) -> float:
