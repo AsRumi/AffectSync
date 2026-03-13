@@ -7,7 +7,8 @@ orchestration logic: timer coordination, emotion/video pairing, pause/resume
 behavior, and end-of-video detection.
 
 Mock strategy:
-- VideoPlayer: mocked to return synthetic frames from get_frame_at().
+- VideoPlayer: mocked to return synthetic frames from read_next_frame().
+  Sequential reads are the primary method; seeking only happens on resume.
 - WebcamCapture: same mock pattern as test_emotion_recorder.py.
 - FaceDetector / EmotionClassifier: same mocks as Phase 1.
 - SessionTimer: use the REAL timer for state-machine tests, since it's
@@ -48,8 +49,11 @@ def fake_webcam_frame():
 @pytest.fixture
 def mock_video_player(fake_frame):
     """
-    Mock VideoPlayer that returns a frame for timestamps 0–1999ms
-    and None for >= 2000ms (simulating a 2-second video).
+    Mock VideoPlayer that returns frames via read_next_frame().
+
+    Simulates a 2-second video at 10 FPS (20 frames). After 20 reads,
+    read_next_frame() returns None (end of video). The duration_ms
+    property is set to 2000.0 so the timer-based end check also works.
     """
     player = MagicMock()
     player.video_path = Path("test_clip.mp4")
@@ -60,12 +64,18 @@ def mock_video_player(fake_frame):
     player.height = 120
     type(player).is_open = PropertyMock(return_value=True)
 
-    def _get_frame(ts_ms):
-        if ts_ms >= 2000:
-            return None
-        return fake_frame.copy()
+    # Track how many frames have been read
+    read_count = {"n": 0}
 
-    player.get_frame_at.side_effect = _get_frame
+    def _read_next():
+        read_count["n"] += 1
+        if read_count["n"] > 20:
+            return None
+        # Return (timestamp_ms, frame) — timestamp simulates position
+        pos_ms = (read_count["n"] / 10.0) * 1000.0
+        return (pos_ms, fake_frame.copy())
+
+    player.read_next_frame.side_effect = _read_next
     player.open.return_value = None
     player.release.return_value = None
     player.seek_to.return_value = None
@@ -238,25 +248,43 @@ class TestSyncLoop:
         controller.teardown()
 
     def test_video_end_stops_loop(self, controller, mock_video_player):
-        """When the video returns None, the loop should exit naturally."""
+        """When read_next_frame returns None, the loop should exit."""
         # Make the video "end" after 3 frames
-        call_count = 0
+        call_count = {"n": 0}
         fake = np.zeros((120, 160, 3), dtype=np.uint8)
 
-        def _get_frame(ts_ms):
-            nonlocal call_count
-            call_count += 1
-            if call_count > 3:
+        def _read_next():
+            call_count["n"] += 1
+            if call_count["n"] > 3:
                 return None
-            return fake.copy()
+            return (call_count["n"] * 100.0, fake.copy())
 
-        mock_video_player.get_frame_at.side_effect = _get_frame
+        mock_video_player.read_next_frame.side_effect = _read_next
+        # Set duration high so the timer check doesn't trigger first
+        mock_video_player.duration_ms = 999999.0
 
         controller.setup()
         controller.start()
 
         frames = list(controller.run())
         assert len(frames) == 3
+        controller.teardown()
+
+    def test_uses_read_next_frame_not_seek(self, controller, mock_video_player):
+        """Verify the loop uses sequential reads, not get_frame_at seeking."""
+        controller.setup()
+        controller.start()
+
+        count = 0
+        for _ in controller.run():
+            count += 1
+            if count >= 5:
+                controller.stop()
+                break
+
+        # read_next_frame should have been called, not get_frame_at
+        assert mock_video_player.read_next_frame.call_count == 5
+        mock_video_player.get_frame_at.assert_not_called()
         controller.teardown()
 
 
