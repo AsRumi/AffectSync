@@ -44,3 +44,6 @@ data/*.mp3
 
 # ── pytest ──
 .pytest_cache/
+
+# Stock clips
+stock/*.mp4
