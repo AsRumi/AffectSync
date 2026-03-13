@@ -131,6 +131,15 @@ def run_session(
     logger.info("Setting up sync session...")
     controller.setup()
 
+    # Set the video window to be resizable and give it a max size (e.g., 1280x720)
+    cv2.namedWindow(WINDOW_NAME_VIDEO, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(WINDOW_NAME_VIDEO, 1280, 720) 
+
+    if show_webcam:
+        # Set the webcam window to be resizable too (e.g., 640x480)
+        cv2.namedWindow(WINDOW_NAME_WEBCAM, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(WINDOW_NAME_WEBCAM, 640, 480)
+
     video_duration_s = controller.video_player.duration_ms / 1000
     print(f"\n  Video: {Path(video_path).name} ({video_duration_s:.1f}s)")
     print(f"  Display FPS: {display_fps} | Emotion FPS: {emotion_fps}")
