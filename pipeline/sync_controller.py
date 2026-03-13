@@ -1,9 +1,10 @@
 """
 Synchronized video + emotion recording controller.
 
-SyncController runs a single main loop that on each tick:
+The SyncController is the brain of Phase 2. It runs a single main loop
+that on each tick:
   1. Asks the SessionTimer "what time is it?"
-  2. Serves the correct video frame for that timestamp.
+  2. Reads the next video frame sequentially (fast decode, no seeking).
   3. Captures a webcam frame and runs emotion inference (at a lower rate).
   4. Pairs the video timestamp with the emotion data.
 
@@ -20,13 +21,17 @@ Design decisions:
 - Pause/resume is delegated entirely to the SessionTimer. When paused,
   elapsed_ms() freezes, so the video player keeps showing the same frame
   and the emotion recorder stops recording.
+- Video frames are read SEQUENTIALLY with read_next_frame() during
+  normal playback. Seeking (get_frame_at / seek_to) is only used after
+  a resume from pause to reposition to the correct timestamp. Sequential
+  reads are ~100x faster than seeking on compressed codecs like H.264.
 """
 
 import logging
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
+from typing import Generator
 
 import numpy as np
 
@@ -136,7 +141,9 @@ class SyncController:
         """
         Open video and webcam, prepare for recording.
 
-        Call this before run().
+        Call this before run(). Separated from __init__ so the caller
+        can construct the controller, inspect metadata, then decide
+        whether to proceed.
         """
         self._video_player.open()
         self._synced_records = []
@@ -199,7 +206,7 @@ class SyncController:
         Resume from pause.
 
         After resuming the timer, seek the video player to the current
-        elapsed position so it continues from the right frame.
+        elapsed position so sequential reads continue from the right spot.
         """
         self._timer.resume()
         current_ms = self._timer.elapsed_ms()
@@ -215,9 +222,14 @@ class SyncController:
             len(self._synced_records),
         )
 
-    def run(self) -> "Generator[SyncedFrame, None, None]":
+    def run(self) -> Generator[SyncedFrame, None, None]:
         """
         Generator that yields one SyncedFrame per display tick.
+
+        Video frames are read SEQUENTIALLY (no seeking) for performance.
+        The timer controls playback speed — the caller sleeps between
+        yields to maintain the target display FPS, so the video advances
+        at approximately real-time speed.
 
         The caller is responsible for:
         - Sleeping to maintain display_fps between yields.
@@ -226,7 +238,8 @@ class SyncController:
         - Breaking out of the loop when done.
 
         The generator exits when:
-        - The video ends (get_frame_at returns None).
+        - The video ends (read_next_frame returns None).
+        - The timer elapsed past the video duration.
         - The timer is stopped externally.
         """
         if not self._timer.is_running:
@@ -234,6 +247,7 @@ class SyncController:
 
         tick_count = 0
         last_emotion_record: EmotionRecord | None = None
+        last_video_frame: np.ndarray | None = None
 
         while True:
             # If paused, yield a paused frame (no new data)
@@ -251,13 +265,23 @@ class SyncController:
 
             current_ms = self._timer.elapsed_ms()
 
-            # Get the video frame for this moment
-            video_frame = self._video_player.get_frame_at(current_ms)
-
-            if video_frame is None:
-                # Video ended
+            # Check if we've elapsed past the video duration
+            video_duration = self._video_player.duration_ms
+            if video_duration > 0 and current_ms > video_duration:
                 logger.info("Video ended at %dms.", current_ms)
                 break
+
+            # Read the next frame sequentially — fast, no seeking.
+            # The caller's sleep between yields controls playback speed.
+            read_result = self._video_player.read_next_frame()
+
+            if read_result is None:
+                # Reached end of video file
+                logger.info("Video ended (EOF) at %dms.", current_ms)
+                break
+
+            _video_pos_ms, video_frame = read_result
+            last_video_frame = video_frame
 
             # Run emotion inference every Nth tick
             is_inference = (tick_count % self._emotion_every_n == 0)
