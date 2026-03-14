@@ -57,9 +57,14 @@ SYNC_DISPLAY_FPS = 30               # Main loop tick rate for smooth video displ
 SYNC_EMOTION_FPS = 10               # Emotion inference rate within the display loop
 
 # ──────────────────────────────────────────────
-# Whisper Transcription Settings (Phase 3+)
+# Whisper Transcription Settings (Phase 3)
 # ──────────────────────────────────────────────
 WHISPER_MODEL_SIZE = "base"          # Options: tiny, base, small, medium, large
+WHISPER_DEVICE = "cpu"               # "cpu" or "cuda" — always cpu for MVP local inference
+WHISPER_LANGUAGE = None              # None = auto-detect, or e.g. "en" to force English
+AUDIO_SAMPLE_RATE = 16000            # Hz — Whisper expects 16kHz mono audio
+TEMP_AUDIO_DIR = PROJECT_ROOT / "outputs" / "temp_audio"  # Temp .wav files go here
+TRANSCRIPT_OUTPUT_DIR = "outputs"    # Directory where transcript JSON files are saved
 
 # ──────────────────────────────────────────────
 # Dataset Export Settings (Phase 4+)
