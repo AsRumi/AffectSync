@@ -35,6 +35,7 @@ from pipeline.sync_controller import SyncController
 from pipeline.audio_extractor import AudioExtractor
 from pipeline.transcriber import Transcriber
 from pipeline.transcript_aligner import TranscriptAligner
+from pipeline.session_assembler import SessionAssembler
 
 logger = get_logger(__name__)
 
@@ -63,6 +64,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Output JSON filename for transcript (saved to outputs/ directory).",
+    )
+    parser.add_argument(
+        "--session-output",
+        type=str,
+        default=None,
+        help="Output JSON filename for the full session dataset (saved to outputs/ directory).",
     )
     parser.add_argument(
         "--display-fps",
@@ -184,10 +191,47 @@ def run_transcription(
         extractor.cleanup()
 
 
+def run_assembly(
+    video_path: str,
+    video_duration_ms: float,
+    emotion_records: list,
+    transcript_segments: list,
+    session_output: str | None,
+) -> Path | None:
+    """
+    Assemble the full session JSON from emotion and transcript data.
+
+    This runs after both the sync session and transcription are complete,
+    so it never blocks video playback. Returns the path to the exported
+    session JSON, or None if assembly fails.
+    """
+    print("\n  Assembling session dataset...")
+    logger.info("Starting session assembly for %s", video_path)
+
+    try:
+        assembler = SessionAssembler(
+            video_source=Path(video_path).name,
+            video_duration_ms=video_duration_ms,
+        )
+        session = assembler.assemble(emotion_records, transcript_segments)
+
+        if session_output is None:
+            session_output = Path(video_path).stem + "_session.json"
+
+        json_path = assembler.export_json(session, session_output)
+        return json_path
+
+    except Exception as exc:
+        logger.error("Session assembly failed: %s", exc)
+        print(f"Session assembly failed: {exc}")
+        return None
+
+
 def run_session(
     video_path: str,
     output_filename: str | None,
     transcript_output: str | None,
+    session_output: str | None,
     display_fps: int,
     emotion_fps: int,
     show_webcam: bool,
@@ -243,11 +287,11 @@ def run_session(
                 if is_paused:
                     controller.resume()
                     is_paused = False
-                    print("  ▶ Resumed")
+                    print("Resumed")
                 else:
                     controller.pause()
                     is_paused = True
-                    print("  ⏸ Paused")
+                    print("Paused")
                 continue
 
             # --- Paused state: show frozen frame with overlay ---
@@ -313,6 +357,10 @@ def run_session(
     controller.stop()
     cv2.destroyAllWindows()
 
+    # Capture records and duration before teardown releases resources
+    emotion_records = controller.recorder.records
+    video_duration_ms = controller.video_player.duration_ms
+
     duration_total = controller.timer.elapsed_ms() / 1000
     actual_display_fps = frames_displayed / duration_total if duration_total > 0 else 0
     actual_emotion_fps = inference_count / duration_total if duration_total > 0 else 0
@@ -334,14 +382,44 @@ def run_session(
     controller.teardown()
 
     # --- Post-session transcription (Phase 3) ---
+    transcript_segments = []
     if run_transcription_step:
         transcript_path = run_transcription(video_path, transcript_output)
         if transcript_path is not None:
             print(f"  Transcript:     {transcript_path}")
+            # Load the exported transcript segments for assembly
+            import json as _json
+            from pipeline.transcript_aligner import TranscriptSegment
+            try:
+                with open(transcript_path, encoding="utf-8") as f:
+                    raw = _json.load(f)
+                transcript_segments = [
+                    TranscriptSegment(
+                        start_ms=entry["start_ms"],
+                        end_ms=entry["end_ms"],
+                        text=entry["text"],
+                    )
+                    for entry in raw
+                ]
+            except Exception as exc:
+                logger.warning("Could not reload transcript for assembly: %s", exc)
         else:
             print(f"  Transcript:     (skipped or failed)")
     else:
         print(f"  Transcript:     (--no-transcription flag set)")
+
+    # --- Post-session dataset assembly (Phase 4) ---
+    session_path = run_assembly(
+        video_path=video_path,
+        video_duration_ms=video_duration_ms,
+        emotion_records=emotion_records,
+        transcript_segments=transcript_segments,
+        session_output=session_output,
+    )
+    if session_path is not None:
+        print(f"  Session JSON:   {session_path}")
+    else:
+        print(f"  Session JSON:   (assembly failed)")
 
     print()
 
@@ -352,6 +430,7 @@ def main() -> None:
         video_path=args.video,
         output_filename=args.output,
         transcript_output=args.transcript_output,
+        session_output=args.session_output,
         display_fps=args.display_fps,
         emotion_fps=args.emotion_fps,
         show_webcam=not args.no_webcam_preview,

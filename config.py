@@ -46,6 +46,7 @@ TRANSCRIPT_OUTPUT_DIR = "outputs"    # Directory where transcript JSON files are
 
 # Dataset Export Settings
 JSON_INDENT = 2                      # Pretty-print indent for output JSON
+SESSION_OUTPUT_DIR = "outputs"
 
 # Logging
 LOG_LEVEL = "INFO"                   # DEBUG, INFO, WARNING, ERROR, CRITICAL
