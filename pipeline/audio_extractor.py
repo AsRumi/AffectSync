@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 
 import ffmpeg
+from ffmpeg._run import Error as FfmpegError
 
 _project_root = Path(__file__).resolve().parent.parent
 if str(_project_root) not in sys.path:
@@ -91,7 +92,7 @@ class AudioExtractor:
                 .overwrite_output()         # Safe to overwrite temp files
                 .run(quiet=True)            # Suppress ffmpeg console output
             )
-        except ffmpeg.Error as exc:
+        except FfmpegError as exc:
             # ffmpeg.Error carries the stderr bytes; decode
             stderr = exc.stderr.decode("utf-8", errors="replace") if exc.stderr else ""
             raise RuntimeError(
