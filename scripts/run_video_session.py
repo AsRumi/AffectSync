@@ -3,7 +3,8 @@ Run a synchronized video + emotion recording session.
 
 Plays a video file while simultaneously capturing the viewer's facial
 emotions via webcam. Both streams share the same monotonic clock so
-timestamps are aligned. Exports a CSV on completion.
+timestamps are aligned. After playback, extracts audio and runs Whisper
+transcription. Exports emotion CSV and transcript JSON on completion.
 
 Controls:
     SPACE  — Pause / resume
@@ -12,6 +13,7 @@ Controls:
 Usage:
     python scripts/run_video_session.py --video path/to/clip.mp4
     python scripts/run_video_session.py --video clip.mp4 --output my_session.csv
+    python scripts/run_video_session.py --video clip.mp4 --no-transcription
 """
 
 import argparse
@@ -30,6 +32,9 @@ if str(_project_root) not in sys.path:
 from config import SYNC_DISPLAY_FPS, SYNC_EMOTION_FPS
 from utils.logger import get_logger
 from pipeline.sync_controller import SyncController
+from pipeline.audio_extractor import AudioExtractor
+from pipeline.transcriber import Transcriber
+from pipeline.transcript_aligner import TranscriptAligner
 
 logger = get_logger(__name__)
 
@@ -54,6 +59,12 @@ def parse_args() -> argparse.Namespace:
         help="Output CSV filename (saved to outputs/ directory).",
     )
     parser.add_argument(
+        "--transcript-output",
+        type=str,
+        default=None,
+        help="Output JSON filename for transcript (saved to outputs/ directory).",
+    )
+    parser.add_argument(
         "--display-fps",
         type=int,
         default=SYNC_DISPLAY_FPS,
@@ -69,6 +80,11 @@ def parse_args() -> argparse.Namespace:
         "--no-webcam-preview",
         action="store_true",
         help="Hide the webcam preview window.",
+    )
+    parser.add_argument(
+        "--no-transcription",
+        action="store_true",
+        help="Skip audio extraction and Whisper transcription after playback.",
     )
     return parser.parse_args()
 
@@ -113,12 +129,69 @@ def draw_pause_overlay(frame: np.ndarray) -> None:
     )
 
 
+def run_transcription(
+    video_path: str,
+    transcript_output: str | None,
+) -> Path | None:
+    """
+    Extract audio from the video and run Whisper transcription.
+
+    This runs after the sync session completes so it never blocks
+    video playback. Returns the path to the exported transcript JSON,
+    or None if transcription fails.
+
+    The temporary WAV file is always cleaned up, even on failure.
+    """
+    extractor = AudioExtractor(video_path)
+    transcriber = Transcriber()
+    aligner = TranscriptAligner()
+
+    print("\n  Extracting audio for transcription...")
+    logger.info("Starting post-session transcription for %s", video_path)
+
+    try:
+        wav_path = extractor.extract()
+    except (FileNotFoundError, RuntimeError) as exc:
+        logger.error("Audio extraction failed: %s", exc)
+        print(f"  ✗ Audio extraction failed: {exc}")
+        return None
+
+    try:
+        print("  Running Whisper transcription (this may take a moment on CPU)...")
+        raw_segments = transcriber.transcribe(wav_path)
+
+        if not raw_segments:
+            print("  ✗ No speech detected in the video audio.")
+            logger.warning("Whisper returned no segments for %s", video_path)
+            return None
+
+        segments = aligner.align(raw_segments)
+
+        # Default transcript filename mirrors the video stem
+        if transcript_output is None:
+            transcript_output = Path(video_path).stem + "_transcript.json"
+
+        json_path = aligner.export_json(segments, transcript_output)
+        return json_path
+
+    except (FileNotFoundError, RuntimeError) as exc:
+        logger.error("Transcription failed: %s", exc)
+        print(f"  ✗ Transcription failed: {exc}")
+        return None
+
+    finally:
+        # Always clean up the temp WAV regardless of success or failure
+        extractor.cleanup()
+
+
 def run_session(
     video_path: str,
     output_filename: str | None,
+    transcript_output: str | None,
     display_fps: int,
     emotion_fps: int,
     show_webcam: bool,
+    run_transcription_step: bool,
 ) -> None:
     """Run the synchronized video + emotion recording session."""
     controller = SyncController(
@@ -133,7 +206,7 @@ def run_session(
 
     # Set the video window to be resizable and give it a max size (e.g., 1280x720)
     cv2.namedWindow(WINDOW_NAME_VIDEO, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(WINDOW_NAME_VIDEO, 1280, 720) 
+    cv2.resizeWindow(WINDOW_NAME_VIDEO, 1280, 720)
 
     if show_webcam:
         # Set the webcam window to be resizable too (e.g., 640x480)
@@ -244,7 +317,7 @@ def run_session(
     actual_display_fps = frames_displayed / duration_total if duration_total > 0 else 0
     actual_emotion_fps = inference_count / duration_total if duration_total > 0 else 0
 
-    # Export CSV
+    # Export emotion CSV
     try:
         csv_path = controller.export_session_csv(output_filename)
     except ValueError:
@@ -256,9 +329,21 @@ def run_session(
     print(f"  Avg display:    {actual_display_fps:.1f} FPS")
     print(f"  Inferences:     {inference_count}")
     print(f"  Avg emotion:    {actual_emotion_fps:.1f} FPS")
-    print(f"  Output:         {csv_path}\n")
+    print(f"  Emotion CSV:    {csv_path}")
 
     controller.teardown()
+
+    # --- Post-session transcription (Phase 3) ---
+    if run_transcription_step:
+        transcript_path = run_transcription(video_path, transcript_output)
+        if transcript_path is not None:
+            print(f"  Transcript:     {transcript_path}")
+        else:
+            print(f"  Transcript:     (skipped or failed)")
+    else:
+        print(f"  Transcript:     (--no-transcription flag set)")
+
+    print()
 
 
 def main() -> None:
@@ -266,9 +351,11 @@ def main() -> None:
     run_session(
         video_path=args.video,
         output_filename=args.output,
+        transcript_output=args.transcript_output,
         display_fps=args.display_fps,
         emotion_fps=args.emotion_fps,
         show_webcam=not args.no_webcam_preview,
+        run_transcription_step=not args.no_transcription,
     )
 
 
