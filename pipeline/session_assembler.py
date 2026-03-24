@@ -8,6 +8,9 @@ The core join is timestamp-based: for each emotion record, we find which
 transcript segment (if any) was active at that moment, then characterize
 where within the segment the timestamp falls.
 
+After the session dict is assembled, PeakDetector runs over the 
+emotion_timeline and appends annotated_peaks.
+
 Segment position thresholds (fraction of segment duration):
     "start" — first 20%
     "mid"   — middle 60%
@@ -30,6 +33,7 @@ if str(_project_root) not in sys.path:
 from config import JSON_INDENT, SESSION_OUTPUT_DIR
 from pipeline.emotion_recorder import EmotionRecord
 from pipeline.transcript_aligner import TranscriptSegment
+from pipeline.peak_detector import PeakDetector
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +58,15 @@ class SessionAssembler:
         video_duration_ms: float,
         viewer_id: str = "anonymous",
         session_id: Optional[str] = None,
+        peak_detector: Optional[PeakDetector] = None,
     ):
         self._video_source = video_source
         self._video_duration_ms = int(video_duration_ms)
         self._viewer_id = viewer_id
         # Allow injection of a fixed session_id for testability; default to UUID4
         self._session_id = session_id or str(uuid.uuid4())
+        
+        self._peak_detector = peak_detector or PeakDetector()
 
     def assemble(
         self,
@@ -76,7 +83,7 @@ class SessionAssembler:
         Returns:
             A dict with keys: session_id, video_source, video_duration_ms,
             viewer_id, recorded_at, emotion_timeline, transcript_segments,
-            aligned_annotations.
+            aligned_annotations, annotated_peaks.
         """
         emotion_timeline = self._build_emotion_timeline(emotion_records)
         transcript_payload = self._build_transcript_payload(transcript_segments)
@@ -95,12 +102,15 @@ class SessionAssembler:
             "aligned_annotations": aligned_annotations,
         }
 
+        session["annotated_peaks"] = self._peak_detector.detect(session)
+
         logger.info(
             "Session assembled — %d emotion records, %d transcript segments, "
-            "%d aligned annotations",
+            "%d aligned annotations, %d peaks",
             len(emotion_timeline),
             len(transcript_payload),
             len(aligned_annotations),
+            len(session["annotated_peaks"]),
         )
         return session
 
@@ -141,10 +151,7 @@ class SessionAssembler:
         )
         return output_path
 
-    # ------------------------------------------------------------------
     # Private helpers
-    # ------------------------------------------------------------------
-
     def _build_emotion_timeline(
         self, records: List[EmotionRecord]
     ) -> List[dict]:
