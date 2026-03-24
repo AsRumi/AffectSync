@@ -4,7 +4,8 @@ Run a synchronized video + emotion recording session.
 Plays a video file while simultaneously capturing the viewer's facial
 emotions via webcam. Both streams share the same monotonic clock so
 timestamps are aligned. After playback, extracts audio and runs Whisper
-transcription. Exports emotion CSV and transcript JSON on completion.
+transcription. Exports emotion CSV, transcript JSON, and full session JSON
+(including annotated_peaks from Phase 5 peak detection) on completion.
 
 Controls:
     SPACE  — Pause / resume
@@ -197,13 +198,12 @@ def run_assembly(
     emotion_records: list,
     transcript_segments: list,
     session_output: str | None,
-) -> Path | None:
+) -> tuple[Path | None, int]:
     """
     Assemble the full session JSON from emotion and transcript data.
+    Peak detection runs automatically inside SessionAssembler.assemble().
 
-    This runs after both the sync session and transcription are complete,
-    so it never blocks video playback. Returns the path to the exported
-    session JSON, or None if assembly fails.
+    Returns a tuple of (json_path, peak_count). json_path is None on failure.
     """
     print("\n  Assembling session dataset...")
     logger.info("Starting session assembly for %s", video_path)
@@ -214,17 +214,18 @@ def run_assembly(
             video_duration_ms=video_duration_ms,
         )
         session = assembler.assemble(emotion_records, transcript_segments)
+        peak_count = len(session.get("annotated_peaks", []))
 
         if session_output is None:
             session_output = Path(video_path).stem + "_session.json"
 
         json_path = assembler.export_json(session, session_output)
-        return json_path
+        return json_path, peak_count
 
     except Exception as exc:
         logger.error("Session assembly failed: %s", exc)
         print(f"Session assembly failed: {exc}")
-        return None
+        return None, 0
 
 
 def run_session(
@@ -408,8 +409,8 @@ def run_session(
     else:
         print(f"  Transcript:     (--no-transcription flag set)")
 
-    # --- Post-session dataset assembly (Phase 4) ---
-    session_path = run_assembly(
+    # Dataset Assembly and Peak Detection
+    session_path, peak_count = run_assembly(
         video_path=video_path,
         video_duration_ms=video_duration_ms,
         emotion_records=emotion_records,
@@ -418,6 +419,7 @@ def run_session(
     )
     if session_path is not None:
         print(f"  Session JSON:   {session_path}")
+        print(f"  Peaks detected: {peak_count}")
     else:
         print(f"  Session JSON:   (assembly failed)")
 
