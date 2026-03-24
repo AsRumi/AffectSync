@@ -48,6 +48,13 @@ TRANSCRIPT_OUTPUT_DIR = "outputs"    # Directory where transcript JSON files are
 JSON_INDENT = 2                      # Pretty-print indent for output JSON
 SESSION_OUTPUT_DIR = "outputs"
 
+# Peak Detection Settings
+PEAK_CONFIDENCE_THRESHOLD = 0.60    # Minimum confidence for a frame to participate in any peak
+PEAK_ONSET_WINDOW_MS = 1000         # How far back to look for a neutral baseline before an onset
+PEAK_SUSTAINED_MIN_DURATION_MS = 500  # Minimum run length (ms) to qualify as a sustained peak
+PEAK_SPIKE_THRESHOLD = 0.80         # Confidence floor for a standalone high-confidence spike
+PEAK_MERGE_GAP_MS = 200             # Peaks of the same type/emotion within this gap are merged
+
 # Logging
 LOG_LEVEL = "INFO"                   # DEBUG, INFO, WARNING, ERROR, CRITICAL
 LOG_FORMAT = "%(asctime)s | %(name)-20s | %(levelname)-7s | %(message)s"
