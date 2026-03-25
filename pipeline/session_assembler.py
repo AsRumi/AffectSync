@@ -4,17 +4,14 @@ Session dataset assembler.
 Merges the emotion timeline (from EmotionRecorder) and transcript segments
 (from TranscriptAligner) into the full session JSON defined in the MVP spec.
 
-The core join is timestamp-based: for each emotion record, we find which
-transcript segment (if any) was active at that moment, then characterize
-where within the segment the timestamp falls.
+Find the timestamp for each emotion record (if it exists) and charecterize it in segments.
 
-After the session dict is assembled, PeakDetector runs over the 
-emotion_timeline and appends annotated_peaks.
+Then run PeakDetector over emotion_timeline and append annotated_peaks.
 
-Segment position thresholds (fraction of segment duration):
-    "start" — first 20%
-    "mid"   — middle 60%
-    "end"   — last 20%
+Segment thresholds:
+    "start" — 0   - 0.2
+    "mid"   — 0.2 - 0.8
+    "end"   — 0.8 - 1
 """
 
 import json
@@ -74,7 +71,7 @@ class SessionAssembler:
         transcript_segments: List[TranscriptSegment],
     ) -> dict:
         """
-        Build the full session dict matching the MVP JSON schema.
+        Build the full session dict matching the JSON schema.
 
         Args:
             emotion_records: Timestamped emotion observations from EmotionRecorder.
