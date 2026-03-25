@@ -13,6 +13,7 @@ build/
 
 # ── Environment / Secrets ──
 .env
+env.example
 
 # ── IDE ──
 .vscode/
