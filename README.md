@@ -273,7 +273,7 @@ python scripts/test_webcam_emotion.py --no-preview   # log-only, no window
 
 - Single viewer per session. Multi-viewer aggregation is a post-MVP feature.
 - Video clips capped at 5 minutes (`MAX_VIDEO_DURATION_SEC`).
-- Emotion inference runs on CPU. Latency is ~50–100ms per frame on a modern laptop, which is why inference is downsampled to 10 FPS.
+- Emotion inference runs on CPU which is why it was downsampled to 10FPS.
 - Whisper `base` model is used by default. Accuracy on overlapping dialogue or heavy accents improves significantly with `small` or `medium` at the cost of transcription time.
 - The pipeline assumes a controlled capture environment: reasonable lighting, viewer facing the camera, single face in frame.
 
