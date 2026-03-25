@@ -69,10 +69,15 @@ def _detector(**kwargs) -> PeakDetector:
     """
     Build a PeakDetector with tight thresholds so test timelines don't need
     to be very long. Defaults can be overridden via kwargs.
+
+    onset_window_ms=700 is chosen so that a neutral frame at t=0 falls
+    inside the window [600-700, 600) = [-100, 600) when the candidate
+    non-neutral frame is at t=600, which is the most common gap used
+    in the onset test timelines.
     """
     defaults = dict(
         confidence_threshold=0.60,
-        onset_window_ms=500,
+        onset_window_ms=700,
         sustained_min_ms=300,
         spike_threshold=0.80,
         merge_gap_ms=150,

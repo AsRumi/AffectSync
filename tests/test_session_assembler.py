@@ -94,7 +94,7 @@ class TestSessionSchema:
         expected_keys = {
             "session_id", "video_source", "video_duration_ms",
             "viewer_id", "recorded_at", "emotion_timeline",
-            "transcript_segments", "aligned_annotations",
+            "transcript_segments", "aligned_annotations", "annotated_peaks"
         }
         assert set(session.keys()) == expected_keys
 

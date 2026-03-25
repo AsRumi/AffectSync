@@ -117,7 +117,7 @@ Each session produces a single JSON file:
 - [ffmpeg-python](https://github.com/kkroening/ffmpeg-python) - audio extraction
 - [ffmpeg](https://ffmpeg.org/) - system binary required by ffmpeg-python
 - [TensorFlow](https://www.tensorflow.org/) - DeepFace backend
-- [pytest](https://pytest.org/) - test suite (169 tests, all hardware-mocked)
+- [pytest](https://pytest.org/) - test suite (210 tests, all hardware-mocked)
 
 ---
 
