@@ -1,6 +1,6 @@
-<h1 style="text-align: center;">AffectSync</h1>
+<h1 align = "center">AffectSync</h1>
 
-<h2 style="text-align: center;">Affective Data Infrastructure for Emotionally-Aware Generative AI</h2>
+<h2 align = "center">Affective Data Infrastructure for Emotionally-Aware Generative AI</h2>
 
 AffectSync is a local deep learning pipeline that records a viewer's real-time facial emotions while a video plays, synchronizes those emotion labels to video timestamps, transcribes the audio, and exports a richly annotated JSON dataset. The output is purpose-built as training data for generative models that need a ground-truth human emotional response signal.
 
