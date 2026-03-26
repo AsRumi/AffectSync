@@ -1,9 +1,5 @@
 """
 Emotion classification module.
-
-Wraps DeepFace to classify a cropped face image into one of 7 emotion
-categories. Handles the DeepFace API, normalizes outputs, and applies
-the confidence threshold from config.
 """
 
 from typing import Dict, Optional, Tuple
@@ -77,9 +73,6 @@ class EmotionClassifier:
 
         Returns:
             (dominant_emotion, confidence, all_scores)
-            - dominant_emotion: string label (e.g., "happy")
-            - confidence: float in [0, 1] for the dominant emotion
-            - all_scores: dict mapping each emotion label to its score
 
         If confidence is below the threshold, returns ("neutral", ...).
         """

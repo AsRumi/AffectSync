@@ -69,9 +69,6 @@ class EmotionRecorder:
     Orchestrates a recording session: captures webcam frames, detects faces,
     classifies emotions, and stores timestamped records.
 
-    Components are injected via the constructor so tests can replace any
-    hardware dependency with a mock.
-
     Usage (standalone — Phase 1):
         recorder = EmotionRecorder()
         recorder.start()
@@ -132,11 +129,7 @@ class EmotionRecorder:
         Returns the EmotionRecord if a frame was processed, or None if
         the webcam failed to return a frame.
 
-        Timer guard: The timer must be running (or at least started).
-        In Phase 1 standalone mode, the timer is always running during
-        recording. In Phase 2 sync mode, the SyncController ensures
-        record_frame() is only called when the timer is running (not
-        paused), but we guard against the idle state regardless.
+        The timer must be running (or at least started).
         """
         if not (self._timer.is_running or self._timer.is_paused):
             raise RuntimeError("Cannot record frames before calling start().")

@@ -1,8 +1,5 @@
 """
 Face detection module.
-
-Locates the largest face in a BGR frame and returns the cropped region.
-Uses OpenCV's Haar Cascade as the default detector for speed on CPU.
 """
 
 from pathlib import Path
