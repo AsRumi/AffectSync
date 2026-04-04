@@ -8,7 +8,7 @@ AffectSync is a local deep learning pipeline that records a viewer's real-time f
 
 ## Motivation
 
-Generative models for creative content (comedy, drama, advertising) are trained on what content _exists_, not on what content makes us _feel something_. A model trained purely on transcripts learns syntax and structure, but has no feedback signal for what actually lands. AffectSync is the data collection infrastructure that produces this signal: every frame of a video paired with a measured viewer emotional response and the transcript text spoken at that moment.
+Generative models for creative content (comedy, drama, advertising) are trained on what content _exists_, not on what content makes us _feel something_. A model trained purely on transcripts learns syntax and structure, but has no feedback signal for what actually lands. AffectSync is the data collection infrastructure that produces this signal: every frame of a video paired with a measured viewer emotional response and the transcript text spoken at that moment. 
 
 ---
 
