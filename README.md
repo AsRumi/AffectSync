@@ -104,7 +104,7 @@ Each session produces a single JSON file:
 
 - `onset` - sharp transition from a neutral baseline into a non-neutral emotion.
 - `sustained` - non-neutral emotion held continuously for ≥ 500ms.
-- `spike` - single frame where confidence exceeds 0.80.
+- `spike` - a single frame where confidence exceeds 0.80.
 
 ---
 
